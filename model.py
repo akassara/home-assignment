@@ -1,6 +1,5 @@
-import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-
+import numpy as np
 
 def create_fasterRCNN(pretrained=False,num_classes=2):
     # load a model i pretrained is True uses the COCO dataset
