@@ -1,3 +1,11 @@
+
+
+import pandas as pd
+import albumentations as  A
+from albumentations.pytorch.transforms import ToTensor
+import numpy as np
+import torch
+
 def create_df(info_df, img_annotations):
     """
     Create df with useful informations for tomatoes allergy detection
@@ -17,26 +25,28 @@ def create_df(info_df, img_annotations):
         tomate_per_img = []
         for k in range(nb_windows):
             annot_dict = img_annotations[key][k]
+            bbox = annot_dict['box']
+            id = annot_dict['id']
+            fr_label = info_df.loc[info_df['labelling_id'] == id]['labelling_name_fr'].item()
+            # The images are going to be downsampled by 2 for computational reasons
+            x1, y1, h, w = bbox[0] // 2, bbox[1] // 2, bbox[2] // 2 - 1, bbox[3] // 2 - 1
+            # sometimes the bounding box is too big
+            h = min(h, 299 - y1)
+            w = min(w, 299 - x1)
+            # we use the coco bbox convention
+            img_bboxs.append([x1, y1, w, h])
+            img_labels.append(fr_label)
 
-            if not annot_dict['is_background']:
-                bbox = annot_dict['box']
-                id = annot_dict['id']
-                fr_label = info_df.loc[info_df['labelling_id'] == id]['labelling_name_fr'].item()
-                # The images are going to be downsampled by 2 for computational reasons
-                x1, y1, h, w = bbox[0] // 2, bbox[1] // 2, bbox[2] // 2 - 1, bbox[3] // 2 - 1
-                # sometimes the bounding box is too big
-                h = min(h, 299 - y1)
-                w = min(w, 299 - x1)
-                # we use the coco bbox convention
-                img_bboxs.append([x1, y1, w, h])
-                img_labels.append(fr_label)
+            if annot_dict['is_background']:
+                tomate_per_img.append(0)
 
+            else:
                 if 'Tomate' in fr_label or 'Raviolis sauce tomate' in fr_label:
-                    tomate_per_img.append(1)
+                    tomate_per_img.append(2)
                     nb_tomates = nb_tomates + 1
                 else:
                     nb_objects = nb_objects + 1
-                    tomate_per_img.append(0)
+                    tomate_per_img.append(1)
         is_tomates.append(tomate_per_img)
         labels.append(img_labels)
         bboxs.append(img_bboxs)
@@ -69,7 +79,8 @@ def to_numpy(x):
             x = x.data.cpu()
         x = x.numpy()
     return x
-
+mean = [0.485, 0.456, 0.406]
+std = [0.229, 0.224, 0.225]
 def unnormalize(img,mean = mean, std = std,image_size=(300,300,3)):
 
   "Unnormalize a given image tensor and make it plotable"
