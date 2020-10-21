@@ -18,4 +18,4 @@ def has_tomatoes(img_path, model, device='cuda'):
     with torch.no_grad():
         prediction = model(image.to(device))
     pred_label = to_numpy(prediction[0]["labels"])  # [kept_boxes]
-    return 1 in pred_label
+    return 2 in pred_label
