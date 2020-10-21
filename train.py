@@ -4,6 +4,7 @@ import os
 import json
 from sklearn.model_selection import train_test_split
 from train_utils import *
+import torch
 
 img_names = os.listdir('data/assignment_imgs')
 img_annotations = open('data/img_annotations.json')
@@ -17,9 +18,9 @@ if torch.cuda.is_available():
     device='cuda'
 else:
     device = 'cpu'
-# our dataset has 2 classes: 0 for no tomatoes and 1 for tomatoes
-num_classes = 2
-pretrained = False
+# our dataset has 2 classes: 0 for background and 1 for no tomatoes and  2for tomatoes
+num_classes = 3
+pretrained = True
 device = True
 # Instanciate model
 model = create_fasterRCNN(pretrained,num_classes)
@@ -64,7 +65,7 @@ save_frequency = 3
 for epoch in range(num_epochs):
 
     # Train for one epoch, printing every 100 iterations
-    train_his_ = train_one_epoch(model, optimizer, train_loader, device, epoch, print_freq=100)
+    train_his_ = train_one_epoch(model, optimizer, train_loader,batch_size, device, epoch, print_freq=100)
 
     # Compute losses over the validation set
     with torch.no_grad():

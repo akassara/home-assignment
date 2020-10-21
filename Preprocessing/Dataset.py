@@ -3,12 +3,13 @@ import os
 import torch
 from torch.utils.data import Dataset
 import albumentations as  A
+from Preprocessing.utils import  simple_preprocess
 
 
 class FoodDataset(Dataset):
     """Foodvisor tomatoe detection dataset."""
 
-    def __init__(self, image_dir, info_df, input_size=(300, 300), transform=None):
+    def __init__(self, image_dir, info_df, input_size=(300, 300), transform=None, weights = [1,10]):
         """
         Args:
             info_df (Dataframe): Dataframe of the image paths and annotations.
@@ -20,6 +21,7 @@ class FoodDataset(Dataset):
         self.image_dir = image_dir
         self.input_size = input_size
         self.transform = transform
+        self.weights = weights
 
     def __len__(self):
         return len(self.info_df)
@@ -67,4 +69,4 @@ class FoodDataset(Dataset):
         target = {"boxes": bboxes, "labels": labels, "image_id": image_id, "area": area,
                   "iscrowd": torch.as_tensor([0], dtype=torch.int64)}
 
-        return image, target
+        return image, target , self.weights[2 in target['labels']]

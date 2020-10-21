@@ -326,26 +326,26 @@ def init_distributed_mode(args):
     setup_for_distributed(args.rank == 0)
 
 
-def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
+def train_one_epoch(model, optimizer, batch_size, data_loader, device, epoch, print_freq):
     model.train()
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
 
     for i, values in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
-        images, targets = values
+        images, targets, weights = values
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        weights = torch.Tensor(weights).to(device)
 
         # Feed the training samples to the model and compute the losses
         loss_dict = model(images, targets)
-        # we increase the weight of the classifier loss because the classification task is the priority
         loss_dict['loss_classifier'] = 10 * loss_dict['loss_classifier']
-        losses = sum(loss for loss in loss_dict.values())
+        losses = (weights.sum() * sum(loss for loss in loss_dict.values())) / batch_size
 
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = reduce_dict(loss_dict)
-        losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+        losses_reduced = weights.sum() * (sum(loss for loss in loss_dict_reduced.values()) / batch_size)
         loss_value = losses_reduced.item()
 
         if not math.isfinite(loss_value):
@@ -400,31 +400,30 @@ def validate_one_epoch(model, data_loader, device='cuda', print_freq=100):
             history['loss'] += losses_reduced.cpu().detach()
     return history
 
-
-def evaluate(model, loader, device, batch_size):
+def evaluate(model, loader, device,batch_size):
     model.eval()
     gt_labels, pred_labels = [], []
     gt_boxes, pred_boxes = np.empty(4), np.empty(4)
     for i, sample in enumerate(loader, 1):
-        images, targets = sample
+        images, targets, weights = sample
         images = list(img.to(device) for img in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         with torch.no_grad():
-            prediction = model(images)
+          prediction = model(images)
         for k in range(batch_size):
-            istomate_target = 1 in to_numpy(targets[k]['labels'])
-            istomate_pred = 1 in to_numpy(prediction[k]['labels'])
-            gt_labels.append(int(istomate_target))
-            pred_labels.append(int(istomate_pred))
-            if len(to_numpy(prediction[k]['boxes'])) > 0:
-                gt_boxes = np.vstack((gt_boxes, targets['boxes'][k]))
-                pred_boxes = np.vstack((pred_boxes, prediction[k]['boxes'][0].cpu()))
+          istomate_target = 2 in to_numpy(targets[k]['labels'])
+          istomate_pred = 2 in to_numpy(prediction[k]['labels'])
+          gt_labels.append(int(istomate_target))
+          pred_labels.append(int(istomate_pred))
+          if len(to_numpy(prediction[k]['boxes']))>0:
+            gt_boxes = np.vstack((gt_boxes, to_numpy(targets[k]['boxes'])))
+            pred_boxes = np.vstack((pred_boxes, prediction[k]['boxes'].cpu()))
     gt_boxes = np.array(gt_boxes)
     pred_boxes = np.array(pred_boxes)
     pred_labels = np.array(pred_labels)
     gt_labels = np.array(gt_labels)
-    d = 0  # compute_metrics(gt_labels, pred_labels)
-    # print("classification metric over validation set:",d)
+    d =  compute_metrics(gt_labels, pred_labels)
+    print("classification metric over validation set:",d)
     average_iou = np.mean([IoU(gt_boxes[i], pred_boxes[i]) for i in range(len(gt_boxes))])
     print("Average IoU over {} set: {:.2f}".format('validation data', average_iou))
     acc = accuracy(gt_labels, pred_labels)
